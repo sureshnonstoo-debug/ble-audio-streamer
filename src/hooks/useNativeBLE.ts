@@ -126,7 +126,16 @@ export function useNativeBLE() {
     setError(null);
 
     try {
-      // Connect to device
+      // Stop any ongoing scan first
+      try {
+        await BleClient.stopLEScan();
+      } catch (e) {
+        console.log('No scan to stop');
+      }
+
+      console.log('Connecting to device:', deviceInfo.id);
+      
+      // Connect to device with disconnect callback
       await BleClient.connect(deviceInfo.id, (deviceId) => {
         console.log('Device disconnected:', deviceId);
         setStatus('disconnected');
@@ -135,15 +144,22 @@ export function useNativeBLE() {
         connectedDeviceId.current = null;
       });
 
+      console.log('Connected, setting up...');
       connectedDeviceId.current = deviceInfo.id;
 
-      // Request higher MTU for better throughput
+      // Request higher MTU for better throughput (Android only)
       try {
         await BleClient.requestConnectionPriority(deviceInfo.id, ConnectionPriority.CONNECTION_PRIORITY_HIGH);
+        console.log('Connection priority set to high');
       } catch (e) {
         console.log('Could not set connection priority:', e);
       }
 
+      // Small delay to let connection stabilize
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      console.log('Starting notifications for:', AUDIO_SERVICE_UUID, AUDIO_CHARACTERISTIC_UUID);
+      
       // Start notifications for audio characteristic
       await BleClient.startNotifications(
         deviceInfo.id,
@@ -154,6 +170,8 @@ export function useNativeBLE() {
         }
       );
 
+      console.log('Notifications started, initializing audio context');
+
       // Initialize audio context
       audioContextRef.current = new AudioContext({ sampleRate: DEFAULT_AUDIO_CONFIG.sampleRate });
 
@@ -163,10 +181,22 @@ export function useNativeBLE() {
       });
       setStatus('streaming');
       setBytesReceived(0);
+      console.log('Connection complete - streaming');
 
     } catch (err) {
-      setError(`Connection failed: ${(err as Error).message}`);
+      const errorMsg = (err as Error).message;
+      console.error('Connection failed:', errorMsg);
+      setError(`Connection failed: ${errorMsg}`);
       setStatus('disconnected');
+      
+      // Try to disconnect cleanly
+      if (connectedDeviceId.current) {
+        try {
+          await BleClient.disconnect(connectedDeviceId.current);
+        } catch (e) {
+          console.log('Cleanup disconnect failed:', e);
+        }
+      }
       connectedDeviceId.current = null;
     }
   }, [initialize, processAudioData]);
