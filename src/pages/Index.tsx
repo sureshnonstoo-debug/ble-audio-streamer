@@ -1,4 +1,4 @@
-import { useBLEAudio } from '@/hooks/useBLEAudio';
+import { useBLEAudioUnified } from '@/hooks/useBLEAudioUnified';
 import { Header } from '@/components/Header';
 import { ScanButton } from '@/components/ScanButton';
 import { DeviceCard } from '@/components/DeviceCard';
@@ -19,7 +19,7 @@ const Index = () => {
     connectToDevice,
     disconnect,
     isSupported,
-  } = useBLEAudio();
+  } = useBLEAudioUnified();
 
   const isStreaming = status === 'streaming';
   const isConnected = status === 'connected' || isStreaming;
